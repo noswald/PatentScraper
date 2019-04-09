@@ -11,24 +11,36 @@ from datetime import datetime
 from lxml import html
 from lxml import etree
 from io import StringIO
+from fake_useragent import UserAgent
 import pandas as pd
 import numpy as np
+
 dateFormat = '%Y-%m-% %H:%M:%S'
 fileDate = '%Y%m%d%H%M'
 filePath = '/home/noswald/Documents/PersonalScraper/'
 chromeDriverPath = '/home/noswald/Documents/PersonalScraper/chromedriver'
 searchValue = 'wallet'
-
 searchPage = 'http://patft.uspto.gov/netahtml/PTO/search-adv.htm'
 queryID = 'mytextarea'
 searchButtonValue = 'Search'
 yrsDropDownValue = 'PTXT'
 display = Display(visible=0,size=(800,600))
 display.start()
-browser = webdriver.Chrome(chromeDriverPath)
+#add tor dependency and logic
+PROXY = 'socks5://127.0.0.1:9050'
+chrome_options = webdriver.ChromeOptions()
+chrome_options.add_argument('--proxy-server=%s' % PROXY)
+#add useragent
+ua = UserAgent()
+userAgent = ua.random
+print("My user agent is: " + userAgent)
+chrome_options.add_argument('user-agent=%s' % userAgent)
+#start browser
+browser = webdriver.Chrome(chrome_options = chrome_options, executable_path = chromeDriverPath)
 browser.get(searchPage)
 inputElement = browser.find_element_by_id(queryID)
 inputElement.send_keys(searchValue)
+time.sleep(2)
 inputElement.submit()
 html_source = browser.page_source
 curDT = datetime.now()
@@ -40,7 +52,7 @@ t = curDT.strftime('%Y%m%d%H%M')
 #f.close()
 tree = html.parse(StringIO(html_source))
 
-#add logic to pull correct end range (1-length of initial number of rows in table)
+#added logic to pull correct end range (1-length of initial number of rows in table)
 endRow = len(tree.xpath('//table[1]//tr'))-1
 patentRank = [tree.xpath('//table[1]//tr[' + str(x) + ']/td[1]//text()')[0] for x in range(2,endRow)]
 patentNumber = [tree.xpath('//table[1]//tr[' + str(x) + ']/td[2]//text()')[0] for x in range(2,endRow)]
@@ -62,20 +74,20 @@ while len(tree.xpath("//form[@name='srchForm']//input[starts-with(@name,'NextLis
     #f.close()
     tree = html.parse(StringIO(html_source))
     endRow = len(tree.xpath('//table[1]//tr'))-1
-    patentRank += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[1]//text()')[0] for x in range(2,52)]
-    patentNumber += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[2]//text()')[0] for x in range(2,52)]
-    patentTitle += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[4]//text()')[0] for x in range(2,52)]
-    patentLink += ['http://patft.uspto.gov' + tree.xpath('//table[1]//tr[' + str(x) + ']/td[4]/a/@href')[0] for x in range(2,52)]
-    time.sleep(3)
+    patentRank += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[1]//text()')[0] for x in range(2,endRow)]
+    patentNumber += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[2]//text()')[0] for x in range(2,endRow)]
+    patentTitle += [tree.xpath('//table[1]//tr[' + str(x) + ']/td[4]//text()')[0] for x in range(2,endRow)]
+    patentLink += ['http://patft.uspto.gov' + tree.xpath('//table[1]//tr[' + str(x) + ']/td[4]/a/@href')[0] for x in range(2,endRow)]
+    time.sleep(2)
     #keep re-creating dictionary and csv file with current data
     patentDict = {'Rank':patentRank, 'PatentNumber':patentNumber, 'PatentTitle':patentTitle, 'PatentLink':patentLink}
     patentFrame = pd.DataFrame.from_dict(patentDict)
-    patentFrame.to_csv(filePath+'testTabDelim_'+t+'.txt',sep='\t')
+    patentFrame.to_csv(filePath+searchValue+'_'+t+'.txt',sep='\t')
 
 browser.quit()
 display.stop()
 #create full Dictionary after all pages have been extracted
 patentDict = {'Rank':patentRank, 'PatentNumber':patentNumber, 'PatentTitle':patentTitle, 'PatentLink':patentLink}
 patentFrame = pd.DataFrame.from_dict(patentDict)
-patentFrame.to_csv(filePath+'testTabDelim_'+t+'.txt',sep='\t')
+patentFrame.to_csv(filePath+searchValue+'_'+t+'.txt',sep='\t')
 print("Finished Scraping")
